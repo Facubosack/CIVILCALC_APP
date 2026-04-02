@@ -1,0 +1,28 @@
+{
+    "name": "CivilCalc — Cálculos de Ingeniería Civil",
+    "short_name": "CivilCalc",
+    "description": "Tu asistente de cálculos de ingeniería civil. Herramientas rápidas y precisas para tu obra.",
+    "start_url": "./",
+    "scope": "./",
+    "display": "standalone",
+    "orientation": "portrait",
+    "theme_color": "#1B4D6E",
+    "background_color": "#F8F6F1",
+    "icons": [
+        {
+            "src": "icon-192.svg",
+            "sizes": "192x192",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "icon-512.svg",
+            "sizes": "512x512",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ],
+    "categories": ["utilities", "productivity", "education"],
+    "lang": "es-AR",
+    "dir": "ltr"
+}
