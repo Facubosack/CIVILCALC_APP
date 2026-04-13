@@ -60,7 +60,7 @@ function goBack() {
 }
 
 // ============================================
-// LOADING SCREEN
+// INITIALIZATION & LOADING SCREEN
 // ============================================
 function initLoadingScreen() {
     setTimeout(() => {
@@ -71,6 +71,18 @@ function initLoadingScreen() {
             showScreen('screen-login', false);
         }
     }, 1800);
+
+    // Check for redirect errors
+    auth.getRedirectResult().catch(error => {
+        console.error('Redirect login error:', error);
+        setTimeout(() => {
+            if (error.code === 'auth/unauthorized-domain') {
+                 showToast('Dominio no autorizado todavía. Revisá Firebase.', 5000);
+            } else {
+                 showToast('Error login: ' + error.message, 5000);
+            }
+        }, 2000);
+    });
 
     // Firebase Auth listener
     auth.onAuthStateChanged(user => {
