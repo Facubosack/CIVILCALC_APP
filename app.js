@@ -185,8 +185,10 @@ async function loginWithGoogle() {
             showToast('Login cancelado');
         } else if (error.code === 'auth/popup-blocked') {
             showToast('Permitir popups para este sitio');
+        } else if (error.code === 'auth/unauthorized-domain') {
+            showToast('Dominio no autorizado todavía. Refrescá la página.');
         } else {
-            showToast('Error al iniciar sesion');
+            showToast('Error: ' + error.message, 5000);
         }
     }
 }
