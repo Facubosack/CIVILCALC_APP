@@ -190,6 +190,7 @@ function initAuth() {
 
 async function loginWithGoogle() {
     try {
+        await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
         await auth.signInWithRedirect(googleProvider);
     } catch (error) {
         console.error('Login error:', error);
