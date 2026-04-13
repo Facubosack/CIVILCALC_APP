@@ -178,7 +178,7 @@ function initAuth() {
 
 async function loginWithGoogle() {
     try {
-        await auth.signInWithPopup(googleProvider);
+        await auth.signInWithRedirect(googleProvider);
     } catch (error) {
         console.error('Login error:', error);
         if (error.code === 'auth/popup-closed-by-user') {
