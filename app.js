@@ -177,7 +177,7 @@ function finishOnboarding() {
 }
 
 // ============================================
-// AUTH — Firebase Google Auth
+// AUTH — Authentication logic
 // ============================================
 
 function initAuth() {
@@ -186,6 +186,73 @@ function initAuth() {
         btnGoogle.addEventListener('click', loginWithGoogle);
     }
 
+    const btnEmailAction = document.getElementById('btn-email-action');
+    const linkAuthToggle = document.getElementById('link-auth-toggle');
+    const textAuthMode = document.getElementById('text-auth-mode');
+
+    if (linkAuthToggle) {
+        linkAuthToggle.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (state.authMode === 'login') {
+                state.authMode = 'register';
+                btnEmailAction.textContent = 'Crear cuenta';
+                textAuthMode.textContent = '¿Ya tenés cuenta? ';
+                linkAuthToggle.textContent = 'Iniciá sesión';
+            } else {
+                state.authMode = 'login';
+                btnEmailAction.textContent = 'Ingresar';
+                textAuthMode.textContent = '¿No tenés cuenta? ';
+                linkAuthToggle.textContent = 'Registrate gratis';
+            }
+        });
+    }
+
+    if (btnEmailAction) {
+        btnEmailAction.addEventListener('click', handleEmailAuth);
+    }
+}
+
+async function handleEmailAuth() {
+    const email = document.getElementById('input-email')?.value.trim();
+    const password = document.getElementById('input-password')?.value;
+
+    if (!email || !password) {
+        showToast('Ingresá email y contraseña');
+        return;
+    }
+
+    if (password.length < 6) {
+        showToast('La contraseña debe tener al menos 6 caracteres');
+        return;
+    }
+
+    try {
+        await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+        const btn = document.getElementById('btn-email-action');
+        btn.disabled = true;
+        const originalText = btn.textContent;
+        btn.textContent = 'Cargando...';
+
+        if (state.authMode === 'login') {
+            await auth.signInWithEmailAndPassword(email, password);
+        } else {
+            const credential = await auth.createUserWithEmailAndPassword(email, password);
+            // Assign a default display name based on email
+            const nameFromEmail = email.split('@')[0];
+            await credential.user.updateProfile({ displayName: nameFromEmail });
+            state.user.displayName = nameFromEmail; // Update local state directly to ensure rendering
+            populateUserData();
+        }
+    } catch (error) {
+        const btn = document.getElementById('btn-email-action');
+        btn.disabled = false;
+        btn.textContent = state.authMode === 'login' ? 'Ingresar' : 'Crear cuenta';
+
+        console.error('Email Auth Error:', error);
+        if (error.code === 'auth/email-already-in-use') showToast('Este email ya está registrado');
+        else if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') showToast('Email o contraseña incorrectos');
+        else showToast('Error: ' + error.message, 4000);
+    }
 }
 
 async function loginWithGoogle() {
