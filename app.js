@@ -240,10 +240,10 @@ function populateUserData() {
 // ---- Greeting based on time ----
 function getGreeting() {
     const hour = new Date().getHours();
-    if (hour < 6) return 'Â¡Buenas noches';
-    if (hour < 12) return 'Â¡Buen dÃ­a';
-    if (hour < 19) return 'Â¡Buenas tardes';
-    return 'Â¡Buenas noches';
+    if (hour < 6) return '¡Buenas noches';
+    if (hour < 12) return '¡Buen día';
+    if (hour < 19) return '¡Buenas tardes';
+    return '¡Buenas noches';
 }
 
 function getFirstName(fullName) {
@@ -293,7 +293,7 @@ function enableDarkMode(enable) {
 }
 
 // ============================================
-// CORTE DE BARRAS â€” Full Feature
+// CORTE DE BARRAS — Full Feature
 // ============================================
 
 const BAR_LENGTH = 12; // meters, standard rebar length in Argentina
@@ -427,7 +427,7 @@ function initCorteBarras() {
     if (btnStep1Next) {
         btnStep1Next.addEventListener('click', () => {
             const count = parseInt(inputCount.value);
-            if (!count || count < 1) { showToast('IngresÃ¡ al menos 1 tipo'); return; }
+            if (!count || count < 1) { showToast('Ingresá al menos 1 tipo'); return; }
             generateTypeForms(count);
             goToCorteStep(2);
         });
@@ -446,23 +446,29 @@ function initCorteBarras() {
     if (btnNew) btnNew.addEventListener('click', () => { resetCorteForm(); goToCorteStep(1); });
 
     const btnGuardar = document.getElementById('btn-guardar-proyecto');
+    let isSaving = false;
     if (btnGuardar) {
         btnGuardar.addEventListener('click', async () => {
+            if (isSaving) return;
             const nameInput = document.getElementById('input-project-name');
             const name = nameInput ? nameInput.value.trim() : '';
-            if (!name) { showToast('Ingresa un nombre para el proyecto'); if (nameInput) nameInput.focus(); return; }
-            if (!lastCalcTypes) { showToast('No hay calculo para guardar'); return; }
+            if (!name) { showToast('Ingresá un nombre para el proyecto'); if (nameInput) nameInput.focus(); return; }
+            if (!lastCalcTypes) { showToast('No hay cálculo para guardar'); return; }
+            isSaving = true;
+            btnGuardar.disabled = true;
             const resumenEl = document.getElementById('resultado-resumen');
             const detalleEl = document.getElementById('resultado-detalle');
             const html = (resumenEl ? resumenEl.innerHTML : '') + '<!--DETAIL-->' + (detalleEl ? detalleEl.innerHTML : '');
             const result = await addProject(name, lastCalcTypes, html);
             if (result) {
-                showToast('Proyecto guardado en la nube!');
+                showToast('¡Proyecto guardado en la nube!');
                 if (nameInput) nameInput.value = '';
                 await updateProjectsCountLabel();
                 const bar = document.getElementById('save-project-bar');
                 if (bar) { bar.classList.add('saved'); setTimeout(() => bar.classList.remove('saved'), 2000); }
             }
+            isSaving = false;
+            btnGuardar.disabled = false;
         });
     }
 
@@ -521,7 +527,7 @@ async function renderProjectsList() {
     container.innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">Cargando proyectos...</div></div>';
     const projects = await getProjects();
     if (projects.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-icon">ðŸ“‹</div><div class="empty-text">No tenÃ©s proyectos guardados</div><div class="empty-sub">HacÃ© un cÃ¡lculo y guardalo con un nombre</div></div>';
+        container.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">No tenés proyectos guardados</div><div class="empty-sub">Hacé un cálculo y guardalo con un nombre</div></div>';
         return;
     }
     container.innerHTML = projects.map(p => {
@@ -530,10 +536,10 @@ async function renderProjectsList() {
         const totalTypes = p.types ? p.types.length : 0;
         const totalPieces = p.types ? p.types.reduce((s, t) => s + t.cantidad, 0) : 0;
         return `<button class="project-card" data-project-id="${p.id}">
-            <div class="project-card-left"><div class="project-card-icon">ðŸ“</div></div>
+            <div class="project-card-left"><div class="project-card-icon">📂</div></div>
             <div class="project-card-body">
                 <div class="project-card-title">${p.nombre}</div>
-                <div class="project-card-meta">${fechaStr} Â· ${totalTypes} tipo${totalTypes !== 1 ? 's' : ''} Â· ${totalPieces} cortes</div>
+                <div class="project-card-meta">${fechaStr} · ${totalTypes} tipo${totalTypes !== 1 ? 's' : ''} · ${totalPieces} cortes</div>
             </div>
             <div class="project-card-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
         </button>`;
@@ -556,7 +562,7 @@ async function openProjectDetail(id) {
     container.innerHTML = `
         <div class="project-detail-header">
             <h3 class="project-detail-name">${project.nombre}</h3>
-            <div class="project-detail-date">ðŸ“… ${fechaStr}</div>
+            <div class="project-detail-date">📅 ${fechaStr}</div>
         </div>
         <div class="resultado-resumen">${parts[0] || ''}</div>
         <div>${parts[1] || ''}</div>
@@ -584,9 +590,9 @@ function generateTypeForms(count) {
                         <input type="text" class="form-input tipo-nombre" placeholder="Ej: Estribo C1" data-index="${i}">
                     </div>
                     <div class="form-group">
-                        <label class="form-label">DiÃ¡metro (mm)</label>
+                        <label class="form-label">Diámetro (mm)</label>
                         <select class="form-input tipo-diametro" data-index="${i}">
-                            ${DIAMETERS.map(d => `<option value="${d}"${d === '8' ? ' selected' : ''}>Ã˜ ${d} mm</option>`).join('')}
+                            ${DIAMETERS.map(d => `<option value="${d}"${d === '8' ? ' selected' : ''}>Ø ${d} mm</option>`).join('')}
                         </select>
                     </div>
                 </div>
@@ -617,9 +623,9 @@ function collectBarTypes() {
         const diametro = parseFloat(diametros[i].value);
         const largo = parseFloat(largos[i].value);
         const cantidad = parseInt(cantidades[i].value);
-        if (!largo || largo <= 0) { showToast(`Tipo ${i + 1}: IngresÃ¡ un largo vÃ¡lido`); return null; }
+        if (!largo || largo <= 0) { showToast(`Tipo ${i + 1}: Ingresá un largo válido`); return null; }
         if (largo > BAR_LENGTH) { showToast(`Tipo ${i + 1}: El largo no puede superar ${BAR_LENGTH}m`); return null; }
-        if (!cantidad || cantidad <= 0) { showToast(`Tipo ${i + 1}: IngresÃ¡ una cantidad vÃ¡lida`); return null; }
+        if (!cantidad || cantidad <= 0) { showToast(`Tipo ${i + 1}: Ingresá una cantidad válida`); return null; }
         types.push({ nombre, diametro, largo, cantidad, index: i });
     }
     return types;
@@ -679,7 +685,7 @@ function renderResults(results, types) {
         totalBars += bars.length;
         totalWaste += waste;
         const wastePercent = ((waste / (bars.length * BAR_LENGTH)) * 100).toFixed(1);
-        resumenHTML += `<div class="resumen-card"><div class="resumen-card-header"><span class="resumen-diam">Ã˜ ${diam} mm</span></div><div class="resumen-card-value">${bars.length}</div><div class="resumen-card-label">barras de ${BAR_LENGTH}m</div><div class="resumen-card-waste">Desperdicio: ${waste.toFixed(2)}m (${wastePercent}%)</div></div>`;
+        resumenHTML += `<div class="resumen-card"><div class="resumen-card-header"><span class="resumen-diam">Ø ${diam} mm</span></div><div class="resumen-card-value">${bars.length}</div><div class="resumen-card-label">barras de ${BAR_LENGTH}m</div><div class="resumen-card-waste">Desperdicio: ${waste.toFixed(2)}m (${wastePercent}%)</div></div>`;
     }
     resumenHTML += '</div>';
 
@@ -687,14 +693,14 @@ function renderResults(results, types) {
     resumenHTML += `<div class="resumen-total"><div class="resumen-total-row"><span>Total barras a comprar</span><strong>${totalBars}</strong></div><div class="resumen-total-row"><span>Desperdicio total</span><strong>${totalWaste.toFixed(2)}m (${totalWastePercent}%)</strong></div></div>`;
 
     // Shopping list
-    let listaHTML = `<div class="lista-compras"><div class="lista-compras-header"><span class="lista-compras-icon">ðŸ›’</span><h4 class="lista-compras-title">Lista de Compras</h4></div><ul class="lista-compras-items">`;
+    let listaHTML = `<div class="lista-compras"><div class="lista-compras-header"><span class="lista-compras-icon">🛒</span><h4 class="lista-compras-title">Lista de Compras</h4></div><ul class="lista-compras-items">`;
     for (const [diam, bars] of Object.entries(results)) {
-        listaHTML += `<li class="lista-compras-item"><span class="lista-item-qty">${bars.length}</span><span class="lista-item-desc">Barras de <strong>Ã˜ ${diam} mm</strong> Ã— ${BAR_LENGTH}m</span></li>`;
+        listaHTML += `<li class="lista-compras-item"><span class="lista-item-qty">${bars.length}</span><span class="lista-item-desc">Barras de <strong>Ø ${diam} mm</strong> × ${BAR_LENGTH}m</span></li>`;
     }
     listaHTML += `</ul><div class="lista-compras-detalle"><div class="lista-detalle-title">Detalle de cortes a realizar:</div><ul class="lista-detalle-items">`;
     types.forEach((type, tIdx) => {
         const color = CUT_COLORS[tIdx % CUT_COLORS.length];
-        listaHTML += `<li class="lista-detalle-item"><span class="lista-detalle-dot" style="background:${color}"></span><span>${type.cantidad} cortes de <strong>${type.largo}m</strong> (Ã˜ ${type.diametro}mm) â€” ${type.nombre}</span></li>`;
+        listaHTML += `<li class="lista-detalle-item"><span class="lista-detalle-dot" style="background:${color}"></span><span>${type.cantidad} cortes de <strong>${type.largo}m</strong> (Ø ${type.diametro}mm) — ${type.nombre}</span></li>`;
     });
     listaHTML += `</ul></div></div>`;
     resumenEl.innerHTML = resumenHTML + listaHTML;
@@ -702,7 +708,7 @@ function renderResults(results, types) {
     // Detail: bar diagrams
     let detalleHTML = '';
     for (const [diam, bars] of Object.entries(results)) {
-        detalleHTML += `<div class="detalle-group"><h4 class="detalle-group-title">Ã˜ ${diam} mm â€” Plan de corte</h4>`;
+        detalleHTML += `<div class="detalle-group"><h4 class="detalle-group-title">Ø ${diam} mm — Plan de corte</h4>`;
         bars.forEach((bar, barIdx) => {
             const cutsHTML = bar.cuts.map(cut => {
                 const wp = (cut.largo / BAR_LENGTH) * 100;
@@ -712,7 +718,7 @@ function renderResults(results, types) {
             const wasteHTML = bar.remaining > 0 ? `<div class="bar-segment bar-waste" style="width:${wPct}%;" title="Sobrante: ${bar.remaining}m"><span class="bar-segment-label">${bar.remaining}m</span></div>` : '';
             const uniqueCuts = []; const seen = new Set();
             bar.cuts.forEach(c => { const key = `${c.nombre}-${c.largo}`; if (!seen.has(key)) { seen.add(key); uniqueCuts.push({ ...c, count: bar.cuts.filter(x => x.nombre === c.nombre && x.largo === c.largo).length }); } });
-            const legendHTML = uniqueCuts.map(c => `<span class="bar-legend-item"><span class="bar-legend-dot" style="background:${c.color}"></span>${c.nombre} (${c.largo}m) Ã—${c.count}</span>`).join('');
+            const legendHTML = uniqueCuts.map(c => `<span class="bar-legend-item"><span class="bar-legend-dot" style="background:${c.color}"></span>${c.nombre} (${c.largo}m) ×${c.count}</span>`).join('');
             detalleHTML += `<div class="bar-diagram-card"><div class="bar-diagram-label">Barra ${barIdx + 1}</div><div class="bar-visual">${cutsHTML}${wasteHTML}</div><div class="bar-legend">${legendHTML}</div></div>`;
         });
         detalleHTML += '</div>';
@@ -739,7 +745,7 @@ function initSettings() {
     if (togglePush) {
         togglePush.addEventListener('change', () => {
             if (togglePush.checked) {
-                showToast('Notificaciones â€” prÃ³ximamente');
+                showToast('Notificaciones — próximamente');
             }
         });
     }
@@ -749,7 +755,7 @@ function initSettings() {
     if (toggleReminders) {
         toggleReminders.addEventListener('change', () => {
             if (toggleReminders.checked) {
-                showToast('Recordatorios â€” prÃ³ximamente');
+                showToast('Recordatorios — próximamente');
             }
         });
     }
@@ -758,7 +764,7 @@ function initSettings() {
     const btnReset = document.getElementById('btn-reset-data');
     if (btnReset) {
         btnReset.addEventListener('click', () => {
-            showConfirmModal('Â¿Borrar todos tus datos? Esta acciÃ³n no se puede deshacer.', () => {
+            showConfirmModal('¿Borrar todos tus datos? Esta acción no se puede deshacer.', () => {
                 localStorage.clear();
                 showToast('Datos eliminados');
                 setTimeout(() => {
@@ -772,7 +778,7 @@ function initSettings() {
     const btnLogout = document.getElementById('btn-logout');
     if (btnLogout) {
         btnLogout.addEventListener('click', () => {
-            showConfirmModal('Â¿Cerrar sesiÃ³n?', logout);
+            showConfirmModal('¿Cerrar sesión?', logout);
         });
     }
 }
@@ -925,5 +931,5 @@ document.addEventListener('DOMContentLoaded', () => {
     // Register SW
     registerServiceWorker();
 
-    console.log('ðŸ—ï¸ CivilCalc v1.0.0 â€” Ready');
+    console.log('🏗️ CivilCalc v1.0.0 — Ready');
 });

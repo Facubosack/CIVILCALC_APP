@@ -1165,19 +1165,25 @@ a {
     bottom: calc(var(--safe-bottom) + 24px);
     left: 50%;
     transform: translateX(-50%) translateY(100px);
-    background-color: var(--color-text);
-    color: var(--color-text-inverse);
-    padding: 12px 24px;
+    background-color: #1A1A2E;
+    color: #FFFFFF;
+    padding: 14px 28px;
     border-radius: var(--radius-full);
-    font-size: 0.9rem;
-    font-weight: 500;
+    font-size: 0.95rem;
+    font-weight: 600;
     z-index: 2000;
     opacity: 0;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     pointer-events: none;
     max-width: 90%;
     text-align: center;
-    box-shadow: var(--shadow-lg);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .toast {
+    background-color: #E6EDF3;
+    color: #0D1117;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .toast.show {
