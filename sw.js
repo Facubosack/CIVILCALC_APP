@@ -3,7 +3,7 @@
 // Cache-first for static assets, network-first for API
 // ============================================
 
-const CACHE_NAME = 'civilcalc-v2';
+const CACHE_NAME = 'civilcalc-v5';
 const STATIC_ASSETS = [
     './',
     './index.html',

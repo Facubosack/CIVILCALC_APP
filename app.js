@@ -1,8 +1,11 @@
 // ============================================
 // CIVILCALC — Main Application
-// SPA Navigation | Dark Mode | Onboarding
-// (Firebase Auth & Firestore se agregan después)
+// SPA Navigation | Dark Mode | Firebase Auth & Firestore
 // ============================================
+
+const auth = firebase.auth();
+const db = firebase.firestore();
+const googleProvider = new firebase.auth.GoogleAuthProvider();
 
 // ---- App State ----
 const state = {
@@ -62,18 +65,35 @@ function goBack() {
 function initLoadingScreen() {
     setTimeout(() => {
         const isFirstVisit = localStorage.getItem('cc_onboarding_done') !== 'true';
-        const isLoggedIn = localStorage.getItem('cc_logged_in') === 'true';
-
         if (isFirstVisit) {
             showScreen('screen-onboarding', false);
-        } else if (!isLoggedIn) {
+        } else if (!auth.currentUser) {
             showScreen('screen-login', false);
-        } else {
-            // Restore user data
-            restoreUser();
-            showScreen('screen-home', false);
         }
     }, 1800);
+
+    // Firebase Auth listener
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            state.user = {
+                displayName: user.displayName || 'Usuario',
+                email: user.email || '',
+                photoURL: user.photoURL || '',
+                uid: user.uid
+            };
+            populateUserData();
+            if (state.currentScreen === 'screen-loading' || state.currentScreen === 'screen-login') {
+                showScreen('screen-home', false);
+                state.navigationHistory = [];
+            }
+        } else {
+            state.user = null;
+            const isFirstVisit = localStorage.getItem('cc_onboarding_done') !== 'true';
+            if (!isFirstVisit && state.currentScreen !== 'screen-onboarding') {
+                showScreen('screen-login', false);
+            }
+        }
+    });
 }
 
 // ============================================
@@ -145,111 +165,41 @@ function finishOnboarding() {
 }
 
 // ============================================
-// AUTH (Visual — sin Firebase por ahora)
+// AUTH — Firebase Google Auth
 // ============================================
 
 function initAuth() {
-    // Google login button
     const btnGoogle = document.getElementById('btn-google-login');
     if (btnGoogle) {
         btnGoogle.addEventListener('click', loginWithGoogle);
     }
 
-    // Email auth button
-    const btnEmail = document.getElementById('btn-email-auth');
-    if (btnEmail) {
-        btnEmail.addEventListener('click', loginWithEmail);
-    }
-
-    // Toggle auth mode
-    const btnToggle = document.getElementById('btn-toggle-auth');
-    if (btnToggle) {
-        btnToggle.addEventListener('click', toggleAuthMode);
-    }
 }
 
-function loginWithGoogle() {
-    // TODO: Integrar Firebase Auth
-    showToast('Login con Google — próximamente con Firebase');
-
-    // Simular login exitoso
-    simulateLogin('Usuario', 'usuario@gmail.com');
-}
-
-function loginWithEmail() {
-    const email = document.getElementById('input-login-email')?.value?.trim();
-    const password = document.getElementById('input-login-password')?.value;
-
-    if (!email || !password) {
-        showToast('Ingresá email y contraseña');
-        return;
-    }
-
-    if (password.length < 6) {
-        showToast('La contraseña debe tener al menos 6 caracteres');
-        return;
-    }
-
-    if (state.authMode === 'register') {
-        showToast('Cuenta creada correctamente 🎉');
-    } else {
-        showToast('¡Bienvenido/a! 🎉');
-    }
-
-    const name = email.split('@')[0];
-    simulateLogin(name, email);
-}
-
-function simulateLogin(name, email) {
-    state.user = {
-        displayName: name,
-        email: email,
-        photoURL: ''
-    };
-
-    localStorage.setItem('cc_logged_in', 'true');
-    localStorage.setItem('cc_user_name', name);
-    localStorage.setItem('cc_user_email', email);
-
-    populateUserData();
-    showScreen('screen-home', false);
-    state.navigationHistory = [];
-}
-
-function restoreUser() {
-    const name = localStorage.getItem('cc_user_name') || 'Usuario';
-    const email = localStorage.getItem('cc_user_email') || '';
-    state.user = { displayName: name, email: email, photoURL: '' };
-    populateUserData();
-}
-
-function toggleAuthMode(e) {
-    if (e) e.preventDefault();
-    state.authMode = state.authMode === 'login' ? 'register' : 'login';
-
-    const btnAuth = document.getElementById('btn-email-auth');
-    const toggleText = document.getElementById('auth-toggle-text');
-    const toggleBtn = document.getElementById('btn-toggle-auth');
-
-    if (state.authMode === 'login') {
-        if (btnAuth) btnAuth.textContent = 'Iniciar Sesión';
-        if (toggleText) toggleText.textContent = '¿No tenés cuenta?';
-        if (toggleBtn) toggleBtn.textContent = ' Crear una';
-    } else {
-        if (btnAuth) btnAuth.textContent = 'Crear Cuenta';
-        if (toggleText) toggleText.textContent = '¿Ya tenés cuenta?';
-        if (toggleBtn) toggleBtn.textContent = ' Iniciar Sesión';
+async function loginWithGoogle() {
+    try {
+        await auth.signInWithPopup(googleProvider);
+    } catch (error) {
+        console.error('Login error:', error);
+        if (error.code === 'auth/popup-closed-by-user') {
+            showToast('Login cancelado');
+        } else if (error.code === 'auth/popup-blocked') {
+            showToast('Permitir popups para este sitio');
+        } else {
+            showToast('Error al iniciar sesion');
+        }
     }
 }
 
-function logout() {
-    state.user = null;
-    localStorage.removeItem('cc_logged_in');
-    localStorage.removeItem('cc_user_name');
-    localStorage.removeItem('cc_user_email');
-    showScreen('screen-login', false);
-    state.navigationHistory = [];
-    showToast('Sesión cerrada');
+async function logout() {
+    try {
+        await auth.signOut();
+        state.user = null;
+        state.navigationHistory = [];
+        showToast('Sesion cerrada');
+    } catch (error) {
+        console.error('Logout error:', error);
+    }
 }
 
 // ---- Populate User Data ----
@@ -290,10 +240,10 @@ function populateUserData() {
 // ---- Greeting based on time ----
 function getGreeting() {
     const hour = new Date().getHours();
-    if (hour < 6) return '¡Buenas noches';
-    if (hour < 12) return '¡Buen día';
-    if (hour < 19) return '¡Buenas tardes';
-    return '¡Buenas noches';
+    if (hour < 6) return 'Â¡Buenas noches';
+    if (hour < 12) return 'Â¡Buen dÃ­a';
+    if (hour < 19) return 'Â¡Buenas tardes';
+    return 'Â¡Buenas noches';
 }
 
 function getFirstName(fullName) {
@@ -343,11 +293,11 @@ function enableDarkMode(enable) {
 }
 
 // ============================================
-// CORTE DE BARRAS — Full Feature
+// CORTE DE BARRAS â€” Full Feature
 // ============================================
 
 const BAR_LENGTH = 12; // meters, standard rebar length in Argentina
-const DIAMETERS = ['4.2', '6', '8', '10', '12', '16', '20', '25', '32'];
+const DIAMETERS = ['6', '8', '10', '12', '16', '20', '25', '32'];
 
 // Color palette for cut segments
 const CUT_COLORS = [
@@ -355,124 +305,263 @@ const CUT_COLORS = [
     '#2980B9', '#27AE60', '#F39C12', '#1ABC9C', '#D35400'
 ];
 
-let corteCurrentStep = 1;
+let corteCurrentStep = 0;
+let lastCalcTypes = null;
+let lastCalcResults = null;
+let viewingProjectId = null;
+
+// ---- Firestore project helpers ----
+function getUserProjectsRef() {
+    if (!state.user || !state.user.uid) return null;
+    return db.collection('users').doc(state.user.uid).collection('projects');
+}
+
+async function getProjects() {
+    const ref = getUserProjectsRef();
+    if (!ref) return [];
+    try {
+        const snapshot = await ref.orderBy('fecha', 'desc').get();
+        return snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            fecha: doc.data().fecha ? doc.data().fecha.toDate().toISOString() : new Date().toISOString()
+        }));
+    } catch (error) {
+        console.error('Error loading projects:', error);
+        return [];
+    }
+}
+
+async function addProject(name, types, resultsHTML) {
+    const ref = getUserProjectsRef();
+    if (!ref) return null;
+    try {
+        const project = {
+            nombre: name,
+            fecha: firebase.firestore.FieldValue.serverTimestamp(),
+            types: types,
+            resultsHTML: resultsHTML
+        };
+        const docRef = await ref.add(project);
+        return { id: docRef.id, ...project, fecha: new Date().toISOString() };
+    } catch (error) {
+        console.error('Error saving project:', error);
+        showToast('Error al guardar el proyecto');
+        return null;
+    }
+}
+
+async function deleteProject(id) {
+    const ref = getUserProjectsRef();
+    if (!ref) return;
+    try {
+        await ref.doc(id).delete();
+    } catch (error) {
+        console.error('Error deleting project:', error);
+        showToast('Error al eliminar');
+    }
+}
+
+async function updateProjectsCountLabel() {
+    const label = document.getElementById('proyectos-count-label');
+    if (!label) return;
+    try {
+        const projects = await getProjects();
+        const count = projects.length;
+        label.textContent = count === 0
+            ? 'No tenes proyectos guardados'
+            : `${count} proyecto${count !== 1 ? 's' : ''} guardado${count !== 1 ? 's' : ''}`;
+    } catch (e) {
+        label.textContent = 'No tenes proyectos guardados';
+    }
+}
+
 
 function initCorteBarras() {
-    // Home card click
     const card = document.getElementById('card-corte-barras');
     if (card) {
         card.addEventListener('click', () => {
-            resetCorteForm();
+            updateProjectsCountLabel();
+            goToCorteStep(0);
             showScreen('screen-corte');
         });
     }
 
-    // Step 1: ± buttons
+    const btnNuevo = document.getElementById('btn-nuevo-proyecto');
+    if (btnNuevo) btnNuevo.addEventListener('click', () => { resetCorteForm(); goToCorteStep(1); });
+
+    const btnVerProy = document.getElementById('btn-ver-proyectos');
+    if (btnVerProy) btnVerProy.addEventListener('click', async () => { await renderProjectsList(); goToCorteStep('projects'); });
+
+    const btnProjNuevo = document.getElementById('btn-projects-nuevo');
+    if (btnProjNuevo) btnProjNuevo.addEventListener('click', () => { resetCorteForm(); goToCorteStep(1); });
+
+    const btnProjBack = document.getElementById('btn-projects-back');
+    if (btnProjBack) btnProjBack.addEventListener('click', () => goToCorteStep(0));
+
+    const btnDetailBack = document.getElementById('btn-project-detail-back');
+    if (btnDetailBack) btnDetailBack.addEventListener('click', async () => { await renderProjectsList(); goToCorteStep('projects'); });
+
+    const btnDeleteProject = document.getElementById('btn-project-delete');
+    if (btnDeleteProject) {
+        btnDeleteProject.addEventListener('click', async () => {
+            if (viewingProjectId) {
+                await deleteProject(viewingProjectId);
+                viewingProjectId = null;
+                showToast('Proyecto eliminado');
+                await updateProjectsCountLabel();
+                await renderProjectsList();
+                goToCorteStep('projects');
+            }
+        });
+    }
+
     const btnMinus = document.getElementById('btn-tipos-minus');
     const btnPlus = document.getElementById('btn-tipos-plus');
     const inputCount = document.getElementById('input-tipos-count');
 
-    if (btnMinus) {
-        btnMinus.addEventListener('click', () => {
-            const v = parseInt(inputCount.value) || 2;
-            inputCount.value = Math.max(1, v - 1);
-        });
-    }
-    if (btnPlus) {
-        btnPlus.addEventListener('click', () => {
-            const v = parseInt(inputCount.value) || 2;
-            inputCount.value = Math.min(50, v + 1);
-        });
-    }
+    if (btnMinus) btnMinus.addEventListener('click', () => { const v = parseInt(inputCount.value) || 2; inputCount.value = Math.max(1, v - 1); });
+    if (btnPlus) btnPlus.addEventListener('click', () => { const v = parseInt(inputCount.value) || 2; inputCount.value = Math.min(50, v + 1); });
 
-    // Step 1 → Step 2
     const btnStep1Next = document.getElementById('btn-corte-step1-next');
     if (btnStep1Next) {
         btnStep1Next.addEventListener('click', () => {
             const count = parseInt(inputCount.value);
-            if (!count || count < 1) {
-                showToast('Ingresá al menos 1 tipo');
-                return;
-            }
+            if (!count || count < 1) { showToast('IngresÃ¡ al menos 1 tipo'); return; }
             generateTypeForms(count);
             goToCorteStep(2);
         });
     }
 
-    // Step 2 → back to Step 1
     const btnStep2Back = document.getElementById('btn-corte-step2-back');
-    if (btnStep2Back) {
-        btnStep2Back.addEventListener('click', () => goToCorteStep(1));
-    }
+    if (btnStep2Back) btnStep2Back.addEventListener('click', () => goToCorteStep(1));
 
-    // Step 2 → Calculate → Step 3
     const btnCalc = document.getElementById('btn-calcular');
-    if (btnCalc) {
-        btnCalc.addEventListener('click', runCuttingOptimization);
-    }
+    if (btnCalc) btnCalc.addEventListener('click', runCuttingOptimization);
 
-    // Step 3 → back to Step 2
     const btnStep3Back = document.getElementById('btn-corte-step3-back');
-    if (btnStep3Back) {
-        btnStep3Back.addEventListener('click', () => goToCorteStep(2));
-    }
+    if (btnStep3Back) btnStep3Back.addEventListener('click', () => goToCorteStep(2));
 
-    // New calculation
     const btnNew = document.getElementById('btn-nuevo-calculo');
-    if (btnNew) {
-        btnNew.addEventListener('click', () => {
-            resetCorteForm();
-            goToCorteStep(1);
+    if (btnNew) btnNew.addEventListener('click', () => { resetCorteForm(); goToCorteStep(1); });
+
+    const btnGuardar = document.getElementById('btn-guardar-proyecto');
+    if (btnGuardar) {
+        btnGuardar.addEventListener('click', async () => {
+            const nameInput = document.getElementById('input-project-name');
+            const name = nameInput ? nameInput.value.trim() : '';
+            if (!name) { showToast('Ingresa un nombre para el proyecto'); if (nameInput) nameInput.focus(); return; }
+            if (!lastCalcTypes) { showToast('No hay calculo para guardar'); return; }
+            const resumenEl = document.getElementById('resultado-resumen');
+            const detalleEl = document.getElementById('resultado-detalle');
+            const html = (resumenEl ? resumenEl.innerHTML : '') + '<!--DETAIL-->' + (detalleEl ? detalleEl.innerHTML : '');
+            const result = await addProject(name, lastCalcTypes, html);
+            if (result) {
+                showToast('Proyecto guardado en la nube!');
+                if (nameInput) nameInput.value = '';
+                await updateProjectsCountLabel();
+                const bar = document.getElementById('save-project-bar');
+                if (bar) { bar.classList.add('saved'); setTimeout(() => bar.classList.remove('saved'), 2000); }
+            }
         });
     }
 
-    // Back button from corte screen
     const btnBack = document.getElementById('btn-back-corte');
     if (btnBack) {
-        btnBack.addEventListener('click', () => {
-            if (corteCurrentStep > 1) {
-                goToCorteStep(corteCurrentStep - 1);
-            } else {
-                goBack();
-            }
+        btnBack.addEventListener('click', async () => {
+            if (corteCurrentStep === 'projects') goToCorteStep(0);
+            else if (corteCurrentStep === 'project-detail') { await renderProjectsList(); goToCorteStep('projects'); }
+            else if (corteCurrentStep > 1) goToCorteStep(corteCurrentStep - 1);
+            else if (corteCurrentStep === 1) goToCorteStep(0);
+            else goBack();
         });
     }
 }
 
 function goToCorteStep(step) {
     corteCurrentStep = step;
+    document.querySelectorAll('#screen-corte .calc-step').forEach(s => s.classList.remove('active'));
+    const stepsBar = document.getElementById('corte-steps-bar');
 
-    // Hide all steps
-    document.querySelectorAll('.calc-step').forEach(s => s.classList.remove('active'));
-    const target = document.getElementById(`corte-step-${step}`);
-    if (target) target.classList.add('active');
-
-    // Update step indicator
-    document.querySelectorAll('.step-item').forEach(si => {
-        const s = parseInt(si.dataset.step);
-        si.classList.remove('active', 'completed');
-        if (s === step) si.classList.add('active');
-        if (s < step) si.classList.add('completed');
-    });
-
-    // Update connector lines
-    const connectors = document.querySelectorAll('.step-connector');
-    connectors.forEach((c, i) => {
-        c.classList.toggle('completed', i + 1 < step);
-    });
-
-    // Scroll to top
+    if (step === 0 || step === 'projects' || step === 'project-detail') {
+        if (stepsBar) stepsBar.style.display = 'none';
+        const targetId = step === 0 ? 'corte-step-0' : step === 'projects' ? 'corte-step-projects' : 'corte-step-project-detail';
+        const target = document.getElementById(targetId);
+        if (target) target.classList.add('active');
+    } else {
+        if (stepsBar) stepsBar.style.display = '';
+        const target = document.getElementById(`corte-step-${step}`);
+        if (target) target.classList.add('active');
+        document.querySelectorAll('.step-item').forEach(si => {
+            const s = parseInt(si.dataset.step);
+            si.classList.remove('active', 'completed');
+            if (s === step) si.classList.add('active');
+            if (s < step) si.classList.add('completed');
+        });
+        document.querySelectorAll('.step-connector').forEach((c, i) => { c.classList.toggle('completed', i + 1 < step); });
+    }
     const main = document.querySelector('#screen-corte .calc-main');
     if (main) main.scrollTop = 0;
 }
 
 function resetCorteForm() {
-    corteCurrentStep = 1;
+    lastCalcTypes = null;
+    lastCalcResults = null;
     const input = document.getElementById('input-tipos-count');
     if (input) input.value = 2;
     const container = document.getElementById('tipos-form-container');
     if (container) container.innerHTML = '';
-    goToCorteStep(1);
+    const nameInput = document.getElementById('input-project-name');
+    if (nameInput) nameInput.value = '';
+}
+
+async function renderProjectsList() {
+    const container = document.getElementById('proyectos-list-container');
+    if (!container) return;
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">Cargando proyectos...</div></div>';
+    const projects = await getProjects();
+    if (projects.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-icon">ðŸ“‹</div><div class="empty-text">No tenÃ©s proyectos guardados</div><div class="empty-sub">HacÃ© un cÃ¡lculo y guardalo con un nombre</div></div>';
+        return;
+    }
+    container.innerHTML = projects.map(p => {
+        const fecha = new Date(p.fecha);
+        const fechaStr = fecha.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+        const totalTypes = p.types ? p.types.length : 0;
+        const totalPieces = p.types ? p.types.reduce((s, t) => s + t.cantidad, 0) : 0;
+        return `<button class="project-card" data-project-id="${p.id}">
+            <div class="project-card-left"><div class="project-card-icon">ðŸ“</div></div>
+            <div class="project-card-body">
+                <div class="project-card-title">${p.nombre}</div>
+                <div class="project-card-meta">${fechaStr} Â· ${totalTypes} tipo${totalTypes !== 1 ? 's' : ''} Â· ${totalPieces} cortes</div>
+            </div>
+            <div class="project-card-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
+        </button>`;
+    }).join('');
+    container.querySelectorAll('.project-card').forEach(card => {
+        card.addEventListener('click', () => openProjectDetail(card.dataset.projectId));
+    });
+}
+
+async function openProjectDetail(id) {
+    const projects = await getProjects();
+    const project = projects.find(p => p.id === id);
+    if (!project) return;
+    viewingProjectId = id;
+    const container = document.getElementById('project-detail-container');
+    if (!container) return;
+    const fecha = new Date(project.fecha);
+    const fechaStr = fecha.toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const parts = project.resultsHTML ? project.resultsHTML.split('<!--DETAIL-->') : ['', ''];
+    container.innerHTML = `
+        <div class="project-detail-header">
+            <h3 class="project-detail-name">${project.nombre}</h3>
+            <div class="project-detail-date">ðŸ“… ${fechaStr}</div>
+        </div>
+        <div class="resultado-resumen">${parts[0] || ''}</div>
+        <div>${parts[1] || ''}</div>
+    `;
+    goToCorteStep('project-detail');
 }
 
 // ---- Generate dynamic form cards ----
@@ -480,7 +569,6 @@ function generateTypeForms(count) {
     const container = document.getElementById('tipos-form-container');
     if (!container) return;
     container.innerHTML = '';
-
     for (let i = 0; i < count; i++) {
         const card = document.createElement('div');
         card.className = 'tipo-form-card';
@@ -496,9 +584,9 @@ function generateTypeForms(count) {
                         <input type="text" class="form-input tipo-nombre" placeholder="Ej: Estribo C1" data-index="${i}">
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Diámetro (mm)</label>
+                        <label class="form-label">DiÃ¡metro (mm)</label>
                         <select class="form-input tipo-diametro" data-index="${i}">
-                            ${DIAMETERS.map(d => `<option value="${d}"${d === '8' ? ' selected' : ''}>Ø ${d} mm</option>`).join('')}
+                            ${DIAMETERS.map(d => `<option value="${d}"${d === '8' ? ' selected' : ''}>Ã˜ ${d} mm</option>`).join('')}
                         </select>
                     </div>
                 </div>
@@ -518,48 +606,32 @@ function generateTypeForms(count) {
     }
 }
 
-// ---- Collect form data ----
 function collectBarTypes() {
     const nombres = document.querySelectorAll('.tipo-nombre');
     const diametros = document.querySelectorAll('.tipo-diametro');
     const largos = document.querySelectorAll('.tipo-largo');
     const cantidades = document.querySelectorAll('.tipo-cantidad');
-
     const types = [];
     for (let i = 0; i < nombres.length; i++) {
         const nombre = nombres[i].value.trim() || `Tipo ${i + 1}`;
         const diametro = parseFloat(diametros[i].value);
         const largo = parseFloat(largos[i].value);
         const cantidad = parseInt(cantidades[i].value);
-
-        if (!largo || largo <= 0) {
-            showToast(`Tipo ${i + 1}: Ingresá un largo válido`);
-            return null;
-        }
-        if (largo > BAR_LENGTH) {
-            showToast(`Tipo ${i + 1}: El largo no puede superar ${BAR_LENGTH}m`);
-            return null;
-        }
-        if (!cantidad || cantidad <= 0) {
-            showToast(`Tipo ${i + 1}: Ingresá una cantidad válida`);
-            return null;
-        }
-
+        if (!largo || largo <= 0) { showToast(`Tipo ${i + 1}: IngresÃ¡ un largo vÃ¡lido`); return null; }
+        if (largo > BAR_LENGTH) { showToast(`Tipo ${i + 1}: El largo no puede superar ${BAR_LENGTH}m`); return null; }
+        if (!cantidad || cantidad <= 0) { showToast(`Tipo ${i + 1}: IngresÃ¡ una cantidad vÃ¡lida`); return null; }
         types.push({ nombre, diametro, largo, cantidad, index: i });
     }
     return types;
 }
 
-// ---- Cutting Optimization (First Fit Decreasing) ----
 function optimizeCutting(pieces) {
-    // Sort by length descending (FFD)
     const sorted = [...pieces].sort((a, b) => b.largo - a.largo);
-    const bars = []; // { remaining, cuts: [{nombre, largo, color}] }
-
+    const bars = [];
     for (const piece of sorted) {
         let placed = false;
         for (const bar of bars) {
-            if (bar.remaining >= piece.largo - 0.001) { // small tolerance for float
+            if (bar.remaining >= piece.largo - 0.001) {
                 bar.cuts.push(piece);
                 bar.remaining = Math.round((bar.remaining - piece.largo) * 100) / 100;
                 placed = true;
@@ -567,148 +639,87 @@ function optimizeCutting(pieces) {
             }
         }
         if (!placed) {
-            bars.push({
-                remaining: Math.round((BAR_LENGTH - piece.largo) * 100) / 100,
-                cuts: [piece]
-            });
+            bars.push({ remaining: Math.round((BAR_LENGTH - piece.largo) * 100) / 100, cuts: [piece] });
         }
     }
     return bars;
 }
 
-// ---- Run the optimization ----
 function runCuttingOptimization() {
     const types = collectBarTypes();
     if (!types) return;
-
-    // Expand types into individual pieces, assign colors
+    lastCalcTypes = types;
     const piecesByDiameter = {};
     types.forEach((type, tIdx) => {
         const color = CUT_COLORS[tIdx % CUT_COLORS.length];
-        if (!piecesByDiameter[type.diametro]) {
-            piecesByDiameter[type.diametro] = [];
-        }
+        if (!piecesByDiameter[type.diametro]) piecesByDiameter[type.diametro] = [];
         for (let q = 0; q < type.cantidad; q++) {
-            piecesByDiameter[type.diametro].push({
-                nombre: type.nombre,
-                largo: type.largo,
-                color: color
-            });
+            piecesByDiameter[type.diametro].push({ nombre: type.nombre, largo: type.largo, color: color });
         }
     });
-
-    // Run optimization per diameter
     const results = {};
     for (const [diam, pieces] of Object.entries(piecesByDiameter)) {
         results[diam] = optimizeCutting(pieces);
     }
-
+    lastCalcResults = results;
     renderResults(results, types);
     goToCorteStep(3);
 }
 
-// ---- Render Results ----
 function renderResults(results, types) {
     const resumenEl = document.getElementById('resultado-resumen');
     const detalleEl = document.getElementById('resultado-detalle');
     if (!resumenEl || !detalleEl) return;
 
-    // Summary cards
     let totalBars = 0;
     let totalWaste = 0;
     let resumenHTML = '<div class="resumen-grid">';
-
     for (const [diam, bars] of Object.entries(results)) {
         const waste = bars.reduce((sum, b) => sum + b.remaining, 0);
         totalBars += bars.length;
         totalWaste += waste;
         const wastePercent = ((waste / (bars.length * BAR_LENGTH)) * 100).toFixed(1);
-
-        resumenHTML += `
-            <div class="resumen-card">
-                <div class="resumen-card-header">
-                    <span class="resumen-diam">Ø ${diam} mm</span>
-                </div>
-                <div class="resumen-card-value">${bars.length}</div>
-                <div class="resumen-card-label">barras de ${BAR_LENGTH}m</div>
-                <div class="resumen-card-waste">Desperdicio: ${waste.toFixed(2)}m (${wastePercent}%)</div>
-            </div>
-        `;
+        resumenHTML += `<div class="resumen-card"><div class="resumen-card-header"><span class="resumen-diam">Ã˜ ${diam} mm</span></div><div class="resumen-card-value">${bars.length}</div><div class="resumen-card-label">barras de ${BAR_LENGTH}m</div><div class="resumen-card-waste">Desperdicio: ${waste.toFixed(2)}m (${wastePercent}%)</div></div>`;
     }
     resumenHTML += '</div>';
 
-    // Total summary
     const totalWastePercent = totalBars > 0 ? ((totalWaste / (totalBars * BAR_LENGTH)) * 100).toFixed(1) : 0;
-    resumenHTML += `
-        <div class="resumen-total">
-            <div class="resumen-total-row">
-                <span>Total barras a comprar</span>
-                <strong>${totalBars}</strong>
-            </div>
-            <div class="resumen-total-row">
-                <span>Desperdicio total</span>
-                <strong>${totalWaste.toFixed(2)}m (${totalWastePercent}%)</strong>
-            </div>
-        </div>
-    `;
-    resumenEl.innerHTML = resumenHTML;
+    resumenHTML += `<div class="resumen-total"><div class="resumen-total-row"><span>Total barras a comprar</span><strong>${totalBars}</strong></div><div class="resumen-total-row"><span>Desperdicio total</span><strong>${totalWaste.toFixed(2)}m (${totalWastePercent}%)</strong></div></div>`;
 
-    // Detail: visual bar diagrams per diameter
+    // Shopping list
+    let listaHTML = `<div class="lista-compras"><div class="lista-compras-header"><span class="lista-compras-icon">ðŸ›’</span><h4 class="lista-compras-title">Lista de Compras</h4></div><ul class="lista-compras-items">`;
+    for (const [diam, bars] of Object.entries(results)) {
+        listaHTML += `<li class="lista-compras-item"><span class="lista-item-qty">${bars.length}</span><span class="lista-item-desc">Barras de <strong>Ã˜ ${diam} mm</strong> Ã— ${BAR_LENGTH}m</span></li>`;
+    }
+    listaHTML += `</ul><div class="lista-compras-detalle"><div class="lista-detalle-title">Detalle de cortes a realizar:</div><ul class="lista-detalle-items">`;
+    types.forEach((type, tIdx) => {
+        const color = CUT_COLORS[tIdx % CUT_COLORS.length];
+        listaHTML += `<li class="lista-detalle-item"><span class="lista-detalle-dot" style="background:${color}"></span><span>${type.cantidad} cortes de <strong>${type.largo}m</strong> (Ã˜ ${type.diametro}mm) â€” ${type.nombre}</span></li>`;
+    });
+    listaHTML += `</ul></div></div>`;
+    resumenEl.innerHTML = resumenHTML + listaHTML;
+
+    // Detail: bar diagrams
     let detalleHTML = '';
     for (const [diam, bars] of Object.entries(results)) {
-        detalleHTML += `
-            <div class="detalle-group">
-                <h4 class="detalle-group-title">Ø ${diam} mm — Plan de corte</h4>
-        `;
-
+        detalleHTML += `<div class="detalle-group"><h4 class="detalle-group-title">Ã˜ ${diam} mm â€” Plan de corte</h4>`;
         bars.forEach((bar, barIdx) => {
             const cutsHTML = bar.cuts.map(cut => {
-                const widthPercent = (cut.largo / BAR_LENGTH) * 100;
-                return `
-                    <div class="bar-segment" style="width:${widthPercent}%;background:${cut.color};" title="${cut.nombre}: ${cut.largo}m">
-                        <span class="bar-segment-label">${cut.largo}m</span>
-                    </div>
-                `;
+                const wp = (cut.largo / BAR_LENGTH) * 100;
+                return `<div class="bar-segment" style="width:${wp}%;background:${cut.color};" title="${cut.nombre}: ${cut.largo}m"><span class="bar-segment-label">${cut.largo}m</span></div>`;
             }).join('');
-
-            const wastePercent = (bar.remaining / BAR_LENGTH) * 100;
-            const wasteHTML = bar.remaining > 0 ? `
-                <div class="bar-segment bar-waste" style="width:${wastePercent}%;" title="Sobrante: ${bar.remaining}m">
-                    <span class="bar-segment-label">${bar.remaining}m</span>
-                </div>
-            ` : '';
-
-            // Build legend for this bar
-            const uniqueCuts = [];
-            const seen = new Set();
-            bar.cuts.forEach(c => {
-                const key = `${c.nombre}-${c.largo}`;
-                if (!seen.has(key)) {
-                    seen.add(key);
-                    const count = bar.cuts.filter(x => x.nombre === c.nombre && x.largo === c.largo).length;
-                    uniqueCuts.push({ ...c, count });
-                }
-            });
-            const legendHTML = uniqueCuts.map(c =>
-                `<span class="bar-legend-item"><span class="bar-legend-dot" style="background:${c.color}"></span>${c.nombre} (${c.largo}m) ×${c.count}</span>`
-            ).join('');
-
-            detalleHTML += `
-                <div class="bar-diagram-card">
-                    <div class="bar-diagram-label">Barra ${barIdx + 1}</div>
-                    <div class="bar-visual">
-                        ${cutsHTML}
-                        ${wasteHTML}
-                    </div>
-                    <div class="bar-legend">${legendHTML}</div>
-                </div>
-            `;
+            const wPct = (bar.remaining / BAR_LENGTH) * 100;
+            const wasteHTML = bar.remaining > 0 ? `<div class="bar-segment bar-waste" style="width:${wPct}%;" title="Sobrante: ${bar.remaining}m"><span class="bar-segment-label">${bar.remaining}m</span></div>` : '';
+            const uniqueCuts = []; const seen = new Set();
+            bar.cuts.forEach(c => { const key = `${c.nombre}-${c.largo}`; if (!seen.has(key)) { seen.add(key); uniqueCuts.push({ ...c, count: bar.cuts.filter(x => x.nombre === c.nombre && x.largo === c.largo).length }); } });
+            const legendHTML = uniqueCuts.map(c => `<span class="bar-legend-item"><span class="bar-legend-dot" style="background:${c.color}"></span>${c.nombre} (${c.largo}m) Ã—${c.count}</span>`).join('');
+            detalleHTML += `<div class="bar-diagram-card"><div class="bar-diagram-label">Barra ${barIdx + 1}</div><div class="bar-visual">${cutsHTML}${wasteHTML}</div><div class="bar-legend">${legendHTML}</div></div>`;
         });
-
         detalleHTML += '</div>';
     }
     detalleEl.innerHTML = detalleHTML;
 }
+
 
 // ============================================
 // SETTINGS
@@ -728,7 +739,7 @@ function initSettings() {
     if (togglePush) {
         togglePush.addEventListener('change', () => {
             if (togglePush.checked) {
-                showToast('Notificaciones — próximamente');
+                showToast('Notificaciones â€” prÃ³ximamente');
             }
         });
     }
@@ -738,7 +749,7 @@ function initSettings() {
     if (toggleReminders) {
         toggleReminders.addEventListener('change', () => {
             if (toggleReminders.checked) {
-                showToast('Recordatorios — próximamente');
+                showToast('Recordatorios â€” prÃ³ximamente');
             }
         });
     }
@@ -747,7 +758,7 @@ function initSettings() {
     const btnReset = document.getElementById('btn-reset-data');
     if (btnReset) {
         btnReset.addEventListener('click', () => {
-            showConfirmModal('¿Borrar todos tus datos? Esta acción no se puede deshacer.', () => {
+            showConfirmModal('Â¿Borrar todos tus datos? Esta acciÃ³n no se puede deshacer.', () => {
                 localStorage.clear();
                 showToast('Datos eliminados');
                 setTimeout(() => {
@@ -761,7 +772,7 @@ function initSettings() {
     const btnLogout = document.getElementById('btn-logout');
     if (btnLogout) {
         btnLogout.addEventListener('click', () => {
-            showConfirmModal('¿Cerrar sesión?', logout);
+            showConfirmModal('Â¿Cerrar sesiÃ³n?', logout);
         });
     }
 }
@@ -914,5 +925,5 @@ document.addEventListener('DOMContentLoaded', () => {
     // Register SW
     registerServiceWorker();
 
-    console.log('🏗️ CivilCalc v1.0.0 — Ready');
+    console.log('ðŸ—ï¸ CivilCalc v1.0.0 â€” Ready');
 });

@@ -188,24 +188,8 @@
                     <span>Continuar con Google</span>
                 </button>
 
-                <div class="divider-with-text">
-                    <hr><span>o ingresá con email</span><hr>
-                </div>
-
-                <div class="form-group" style="text-align:left;">
-                    <input type="email" id="input-login-email" class="form-input" placeholder="Tu correo electrónico">
-                </div>
-                <div class="form-group" style="text-align:left;">
-                    <input type="password" id="input-login-password" class="form-input" placeholder="Tu contraseña">
-                </div>
-
-                <button class="btn btn-primary btn-full" id="btn-email-auth">
-                    Iniciar Sesión
-                </button>
-
-                <p style="text-align:center; margin-top:15px; font-size:14px; color:var(--color-text-secondary);">
-                    <span id="auth-toggle-text">¿No tenés cuenta?</span>
-                    <a id="btn-toggle-auth" style="cursor:pointer; color:var(--color-primary); font-weight:600; text-decoration:none;"> Crear una</a>
+                <p style="text-align:center; margin-top:16px; font-size:0.82rem; color:var(--color-text-secondary); line-height:1.4;">
+                    Al continuar, aceptás los términos de uso.<br>Tu cuenta se crea automáticamente.
                 </p>
             </div>
         </div>
@@ -294,8 +278,8 @@
             <div class="sub-header-spacer"></div>
         </header>
 
-        <!-- Step Indicator -->
-        <div class="steps-bar">
+        <!-- Step Indicator (hidden on landing) -->
+        <div class="steps-bar" id="corte-steps-bar" style="display:none;">
             <div class="step-item active" data-step="1">
                 <div class="step-number">1</div>
                 <div class="step-label">Tipos</div>
@@ -313,8 +297,64 @@
         </div>
 
         <main class="calc-main">
+            <!-- STEP 0: Landing — Nuevo Cálculo o Mis Proyectos -->
+            <div class="calc-step active" id="corte-step-0">
+                <div class="landing-hero">
+                    <div class="landing-hero-icon">✂️</div>
+                    <h3 class="landing-hero-title">Optimizador de Corte</h3>
+                    <p class="landing-hero-desc">Calculá cuántas barras de 12m necesitás y minimizá el desperdicio de acero.</p>
+                </div>
+
+                <div class="landing-actions">
+                    <button class="landing-action-card" id="btn-nuevo-proyecto">
+                        <div class="landing-action-icon">➕</div>
+                        <div class="landing-action-body">
+                            <div class="landing-action-title">Nuevo Cálculo</div>
+                            <div class="landing-action-desc">Iniciá un cálculo de corte desde cero</div>
+                        </div>
+                        <div class="landing-action-arrow">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                        </div>
+                    </button>
+
+                    <button class="landing-action-card" id="btn-ver-proyectos">
+                        <div class="landing-action-icon">📁</div>
+                        <div class="landing-action-body">
+                            <div class="landing-action-title">Mis Proyectos</div>
+                            <div class="landing-action-desc" id="proyectos-count-label">No tenés proyectos guardados</div>
+                        </div>
+                        <div class="landing-action-arrow">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- PROJECTS LIST VIEW -->
+            <div class="calc-step" id="corte-step-projects">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+                    <h3 class="step-title" style="margin:0;">Mis Proyectos</h3>
+                    <button class="btn btn-primary" id="btn-projects-nuevo" style="padding:8px 16px;font-size:0.85rem;">+ Nuevo</button>
+                </div>
+                <div id="proyectos-list-container">
+                    <!-- JS fills this -->
+                </div>
+                <button class="btn btn-ghost btn-full" id="btn-projects-back" style="margin-top:12px;">← Volver</button>
+            </div>
+
+            <!-- PROJECT DETAIL VIEW -->
+            <div class="calc-step" id="corte-step-project-detail">
+                <div id="project-detail-container">
+                    <!-- JS fills this -->
+                </div>
+                <div style="display:flex;gap:12px;margin-top:20px;">
+                    <button class="btn btn-ghost" id="btn-project-detail-back" style="flex:1;">← Mis Proyectos</button>
+                    <button class="btn btn-danger" id="btn-project-delete" style="flex:1;padding:10px;">🗑 Eliminar</button>
+                </div>
+            </div>
+
             <!-- STEP 1: ¿Cuántos tipos? -->
-            <div class="calc-step active" id="corte-step-1">
+            <div class="calc-step" id="corte-step-1">
                 <div class="step-intro">
                     <div class="step-intro-icon">✂️</div>
                     <h3 class="step-title">¿Cuántos tipos de barras necesitás?</h3>
@@ -359,7 +399,15 @@
                     <!-- JS fills this -->
                 </div>
 
-                <div style="display:flex;gap:12px;margin-top:20px;">
+                <!-- Save project -->
+                <div class="save-project-bar" id="save-project-bar">
+                    <div class="save-project-row">
+                        <input type="text" class="form-input" id="input-project-name" placeholder="Nombre del proyecto (ej: Obra San Martín)">
+                        <button class="btn btn-primary" id="btn-guardar-proyecto" style="white-space:nowrap;">💾 Guardar</button>
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:12px;margin-top:12px;">
                     <button class="btn btn-ghost" id="btn-corte-step3-back" style="flex:1;">← Modificar</button>
                     <button class="btn btn-primary btn-full" id="btn-nuevo-calculo" style="flex:2;">Nuevo cálculo</button>
                 </div>
@@ -470,6 +518,24 @@
     <div class="toast" id="toast">
         <span id="toast-text"></span>
     </div>
+
+    <!-- Firebase SDK (v10 compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+    <!-- Firebase Config -->
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkmk8YuwCowOBoTqvuKb0zaIInE0M5eX4",
+            authDomain: "civilcalc-ab395.firebaseapp.com",
+            projectId: "civilcalc-ab395",
+            storageBucket: "civilcalc-ab395.firebasestorage.app",
+            messagingSenderId: "512271598589",
+            appId: "1:512271598589:web:81179f1e818670641c8f94"
+        };
+        firebase.initializeApp(firebaseConfig);
+    </script>
 
     <!-- App -->
     <script src="app.js"></script>
