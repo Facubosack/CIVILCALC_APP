@@ -20,7 +20,7 @@ const state = {
 
 // ---- Available stock defined by user ----
 // Each entry: { largo: number, cantidad: number, isRetazo: boolean }
-let availableStock = [];
+let availableStock = { newBarLengths: [], remnants: [] };
 
 
 // ---- Push Server URL ----
@@ -592,22 +592,23 @@ function initCorteBarras() {
 function createStockRow(isRetazo) {
     const row = document.createElement('div');
     row.className = 'stock-row';
-    const defaultLen = isRetazo ? '' : '12';
-    row.innerHTML = `
-        <div class="stock-row-inputs">
-            <div class="stock-input-group">
-                <label class="stock-label">${isRetazo ? 'Largo (m)' : 'Largo (m)'}</label>
-                <input type="number" class="form-input stock-largo" placeholder="ej: ${isRetazo ? '5.5' : '12'}" value="${defaultLen}" min="0.1" step="0.01">
-            </div>
-            <div class="stock-input-group">
-                <label class="stock-label">Cantidad</label>
-                <input type="number" class="form-input stock-cantidad" placeholder="ej: 10" value="" min="1" step="1">
-            </div>
-            <button class="stock-remove-btn" title="Eliminar fila">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-        </div>
-    `;
+    if (isRetazo) {
+        row.innerHTML = '<div class="stock-row-inputs">'
+            + '<div class="stock-input-group"><label class="stock-label">Largo (m)</label>'
+            + '<input type="number" class="form-input stock-largo" placeholder="ej: 5.5" value="" min="0.1" step="0.01"></div>'
+            + '<div class="stock-input-group"><label class="stock-label">Cantidad</label>'
+            + '<input type="number" class="form-input stock-cantidad" placeholder="ej: 3" value="" min="1" step="1"></div>'
+            + '<button class="stock-remove-btn" title="Eliminar fila">'
+            + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">'
+            + '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>';
+    } else {
+        row.innerHTML = '<div class="stock-row-inputs">'
+            + '<div class="stock-input-group" style="flex:2"><label class="stock-label">Largo disponible en ferretería (m)</label>'
+            + '<input type="number" class="form-input stock-largo" placeholder="ej: 12" value="12" min="0.1" step="0.01"></div>'
+            + '<button class="stock-remove-btn" title="Eliminar" style="align-self:flex-end;margin-bottom:2px;">'
+            + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">'
+            + '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>';
+    }
     row.querySelector('.stock-remove-btn').addEventListener('click', () => row.remove());
     return row;
 }
@@ -628,22 +629,20 @@ function initStockStep() {
 }
 
 function collectStock() {
-    const stock = [];
+    // New bars: unlimited supply — only capture the lengths available at the store
+    const newBarLengths = [];
     document.querySelectorAll('#stock-nuevas-container .stock-row').forEach(row => {
         const largo = parseFloat(row.querySelector('.stock-largo').value);
-        const cantidad = parseInt(row.querySelector('.stock-cantidad').value);
-        if (largo > 0 && cantidad > 0) {
-            stock.push({ largo, cantidad, isRetazo: false });
-        }
+        if (largo > 0) newBarLengths.push(largo);
     });
+    // Remnants: finite — capture largo + cantidad
+    const remnants = [];
     document.querySelectorAll('#stock-retazos-container .stock-row').forEach(row => {
         const largo = parseFloat(row.querySelector('.stock-largo').value);
         const cantidad = parseInt(row.querySelector('.stock-cantidad').value);
-        if (largo > 0 && cantidad > 0) {
-            stock.push({ largo, cantidad, isRetazo: true });
-        }
+        if (largo > 0 && cantidad > 0) remnants.push({ largo, cantidad });
     });
-    return stock;
+    return { newBarLengths, remnants };
 }
 
 function goToCorteStep(step) {
@@ -675,7 +674,7 @@ function goToCorteStep(step) {
 function resetCorteForm() {
     lastCalcTypes = null;
     lastCalcResults = null;
-    availableStock = [];
+    availableStock = { newBarLengths: [], remnants: [] };
     const input = document.getElementById('input-tipos-count');
     if (input) input.value = 2;
     const container = document.getElementById('tipos-form-container');
@@ -796,44 +795,39 @@ function collectBarTypes() {
     return types;
 }
 
-function optimizeCutting(pieces, stock) {
-    // stock: array of { largo, isRetazo } — one entry per available bar
-    // If stock is empty → unlimited 12m bars (original behavior)
-    const useStock = stock && stock.length > 0;
-
+// Remnants are finite and used FIRST. New bars are opened on demand (unlimited supply).
+function optimizeCutting(pieces, remnantsFlat, newBarLengths) {
+    const purchaseLengths = (newBarLengths && newBarLengths.length > 0)
+        ? [...newBarLengths].sort((a, b) => b - a)
+        : [12];
+    const maxLen = Math.max(...purchaseLengths);
     const sorted = [...pieces].sort((a, b) => b.largo - a.largo);
 
-    // Initialize bars from stock (retazos first, then new bars)
-    const bars = useStock
-        ? [...stock].sort((a, b) => a.isRetazo - b.isRetazo || b.largo - a.largo)
-              .map(s => ({ remaining: s.largo, cuts: [], isRetazo: s.isRetazo, originalLargo: s.largo }))
-        : [];
+    // Load all finite remnants first (largest first for FFD)
+    const bars = (remnantsFlat || [])
+        .sort((a, b) => b.largo - a.largo)
+        .map(r => ({ remaining: r.largo, cuts: [], isRetazo: true, originalLargo: r.largo }));
 
     for (const piece of sorted) {
-        let placed = false;
-
-        // Try to fit in an existing bar (retazos first, then new bars)
-        for (const bar of bars) {
-            if (bar.remaining >= piece.largo - 0.001) {
-                bar.cuts.push(piece);
-                bar.remaining = Math.round((bar.remaining - piece.largo) * 100) / 100;
-                placed = true;
-                break;
+        if (piece.largo > maxLen) {
+            return { error: 'La pieza "' + piece.nombre + '" (' + piece.largo + 'm) supera el largo máximo disponible (' + maxLen + 'm). Ajustá tu stock.' };
+        }
+        // Best-fit: pick existing bar with smallest remaining space that still fits
+        let bestIdx = -1, bestRem = Infinity;
+        for (let i = 0; i < bars.length; i++) {
+            if (bars[i].remaining >= piece.largo - 0.001 && bars[i].remaining < bestRem) {
+                bestRem = bars[i].remaining; bestIdx = i;
             }
         }
-
-        if (!placed) {
-            if (useStock) {
-                // No room in any available bar — not enough material
-                return { error: `No hay suficiente material en el stock para la pieza "${piece.nombre}" (${piece.largo}m). Agregá más barras en el paso anterior.` };
-            } else {
-                // Unlimited mode: open a new 12m bar
-                bars.push({ remaining: Math.round((BAR_LENGTH - piece.largo) * 100) / 100, cuts: [piece], isRetazo: false, originalLargo: BAR_LENGTH });
-            }
+        if (bestIdx !== -1) {
+            bars[bestIdx].cuts.push(piece);
+            bars[bestIdx].remaining = Math.round((bars[bestIdx].remaining - piece.largo) * 100) / 100;
+        } else {
+            // Open smallest new bar that fits
+            const chosenLen = [...purchaseLengths].sort((a, b) => a - b).find(l => l >= piece.largo - 0.001) || purchaseLengths[0];
+            bars.push({ remaining: Math.round((chosenLen - piece.largo) * 100) / 100, cuts: [piece], isRetazo: false, originalLargo: chosenLen });
         }
     }
-
-    // Filter out unused bars from stock (no cuts made)
     return bars.filter(b => b.cuts.length > 0);
 }
 
@@ -842,54 +836,24 @@ function runCuttingOptimization() {
     if (!types) return;
 
     // Validate pieces don't exceed largest available bar in stock
-    const useStock = availableStock.length > 0;
-    if (useStock) {
-        const maxBarLen = Math.max(...availableStock.map(s => s.largo));
-        for (const t of types) {
-            if (t.largo > maxBarLen) {
-                showToast(`"${t.nombre}" (${t.largo}m) supera el largo máximo disponible (${maxBarLen}m)`);
-                return;
-            }
-        }
-    } else {
-        for (const t of types) {
-            if (t.largo > BAR_LENGTH) {
-                showToast(`"${t.nombre}": el largo no puede superar ${BAR_LENGTH}m`);
-                return;
-            }
-        }
-    }
+    const { newBarLengths = [], remnants = [] } = availableStock || {};
+    const hasRemnants = remnants.length > 0;
 
-    lastCalcTypes = types;
-    const piecesByDiameter = {};
-    types.forEach((type, tIdx) => {
-        const color = CUT_COLORS[tIdx % CUT_COLORS.length];
-        if (!piecesByDiameter[type.diametro]) piecesByDiameter[type.diametro] = [];
-        for (let q = 0; q < type.cantidad; q++) {
-            piecesByDiameter[type.diametro].push({ nombre: type.nombre, largo: type.largo, color: color });
-        }
-    });
-
-    // Build flat stock list (expand by quantity, retazos sorted first for greedy use)
-    const stockFlat = useStock
-        ? availableStock.flatMap(s => Array.from({ length: s.cantidad }, () => ({ largo: s.largo, isRetazo: s.isRetazo })))
-              .sort((a, b) => (b.isRetazo ? -1 : 1)) // retazos first
-        : [];
+    // Expand remnants to flat list of physical bars (one entry per piece)
+    const remnantsFlat = remnants.flatMap(r =>
+        Array.from({ length: r.cantidad }, () => ({ largo: r.largo, isRetazo: true }))
+    );
 
     const results = {};
     for (const [diam, pieces] of Object.entries(piecesByDiameter)) {
-        // Each diameter group gets its own copy of the full stock
-        const stockCopy = useStock ? stockFlat.map(s => ({ ...s })) : [];
-        const result = optimizeCutting(pieces, stockCopy);
-        if (result && result.error) {
-            showToast(result.error, 5000);
-            return;
-        }
+        const remnantsCopy = remnantsFlat.map(r => ({ ...r }));
+        const result = optimizeCutting(pieces, remnantsCopy, newBarLengths);
+        if (result && result.error) { showToast(result.error, 5000); return; }
         results[diam] = result;
     }
 
     lastCalcResults = results;
-    renderResults(results, types, useStock);
+    renderResults(results, types, hasRemnants);
     goToCorteStep(4);
 }
 
