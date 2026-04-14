@@ -18,6 +18,11 @@ const state = {
     authMode: 'login' // 'login' or 'register'
 };
 
+// ---- Available stock defined by user ----
+// Each entry: { largo: number, cantidad: number, isRetazo: boolean }
+let availableStock = [];
+
+
 // ---- Push Server URL ----
 const PUSH_SERVER_URL = 'http://localhost:3001';
 
@@ -498,31 +503,48 @@ function initCorteBarras() {
         });
     }
 
-    const btnMinus = document.getElementById('btn-tipos-minus');
-    const btnPlus = document.getElementById('btn-tipos-plus');
-    const inputCount = document.getElementById('input-tipos-count');
-
-    if (btnMinus) btnMinus.addEventListener('click', () => { const v = parseInt(inputCount.value) || 2; inputCount.value = Math.max(1, v - 1); });
-    if (btnPlus) btnPlus.addEventListener('click', () => { const v = parseInt(inputCount.value) || 2; inputCount.value = Math.min(50, v + 1); });
+    // --- STEP 1: Material stock ---
+    initStockStep();
 
     const btnStep1Next = document.getElementById('btn-corte-step1-next');
     if (btnStep1Next) {
         btnStep1Next.addEventListener('click', () => {
-            const count = parseInt(inputCount.value);
-            if (!count || count < 1) { showToast('Ingresá al menos 1 tipo'); return; }
-            generateTypeForms(count);
+            availableStock = collectStock();
             goToCorteStep(2);
         });
     }
+    const btnStep1Back = document.getElementById('btn-corte-step1-back');
+    if (btnStep1Back) btnStep1Back.addEventListener('click', () => goToCorteStep(0));
 
+    // --- STEP 2: Tipos count ---
+    const btnMinus = document.getElementById('btn-tipos-minus');
+    const btnPlus = document.getElementById('btn-tipos-plus');
+    const inputCount = document.getElementById('input-tipos-count');
+    if (btnMinus) btnMinus.addEventListener('click', () => { const v = parseInt(inputCount.value) || 2; inputCount.value = Math.max(1, v - 1); });
+    if (btnPlus) btnPlus.addEventListener('click', () => { const v = parseInt(inputCount.value) || 2; inputCount.value = Math.min(50, v + 1); });
+
+    const btnStep2Next = document.getElementById('btn-corte-step2-next');
+    if (btnStep2Next) {
+        btnStep2Next.addEventListener('click', () => {
+            const count = parseInt(inputCount.value);
+            if (!count || count < 1) { showToast('Ingresá al menos 1 tipo'); return; }
+            generateTypeForms(count);
+            goToCorteStep(3);
+        });
+    }
     const btnStep2Back = document.getElementById('btn-corte-step2-back');
     if (btnStep2Back) btnStep2Back.addEventListener('click', () => goToCorteStep(1));
 
+    // --- STEP 3: Datos y Calcular ---
     const btnCalc = document.getElementById('btn-calcular');
     if (btnCalc) btnCalc.addEventListener('click', runCuttingOptimization);
 
     const btnStep3Back = document.getElementById('btn-corte-step3-back');
     if (btnStep3Back) btnStep3Back.addEventListener('click', () => goToCorteStep(2));
+
+    // --- STEP 4: Resultado ---
+    const btnStep4Back = document.getElementById('btn-corte-step4-back');
+    if (btnStep4Back) btnStep4Back.addEventListener('click', () => goToCorteStep(3));
 
     const btnNew = document.getElementById('btn-nuevo-calculo');
     if (btnNew) btnNew.addEventListener('click', () => { resetCorteForm(); goToCorteStep(1); });
@@ -559,11 +581,69 @@ function initCorteBarras() {
         btnBack.addEventListener('click', async () => {
             if (corteCurrentStep === 'projects') goToCorteStep(0);
             else if (corteCurrentStep === 'project-detail') { await renderProjectsList(); goToCorteStep('projects'); }
-            else if (corteCurrentStep > 1) goToCorteStep(corteCurrentStep - 1);
+            else if (typeof corteCurrentStep === 'number' && corteCurrentStep > 1) goToCorteStep(corteCurrentStep - 1);
             else if (corteCurrentStep === 1) goToCorteStep(0);
             else goBack();
         });
     }
+}
+
+// ---- Stock Step helpers ----
+function createStockRow(isRetazo) {
+    const row = document.createElement('div');
+    row.className = 'stock-row';
+    const defaultLen = isRetazo ? '' : '12';
+    row.innerHTML = `
+        <div class="stock-row-inputs">
+            <div class="stock-input-group">
+                <label class="stock-label">${isRetazo ? 'Largo (m)' : 'Largo (m)'}</label>
+                <input type="number" class="form-input stock-largo" placeholder="ej: ${isRetazo ? '5.5' : '12'}" value="${defaultLen}" min="0.1" step="0.01">
+            </div>
+            <div class="stock-input-group">
+                <label class="stock-label">Cantidad</label>
+                <input type="number" class="form-input stock-cantidad" placeholder="ej: 10" value="" min="1" step="1">
+            </div>
+            <button class="stock-remove-btn" title="Eliminar fila">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+    `;
+    row.querySelector('.stock-remove-btn').addEventListener('click', () => row.remove());
+    return row;
+}
+
+function initStockStep() {
+    const btnAddNueva = document.getElementById('btn-add-nueva');
+    if (btnAddNueva) {
+        btnAddNueva.addEventListener('click', () => {
+            document.getElementById('stock-nuevas-container').appendChild(createStockRow(false));
+        });
+    }
+    const btnAddRetazo = document.getElementById('btn-add-retazo');
+    if (btnAddRetazo) {
+        btnAddRetazo.addEventListener('click', () => {
+            document.getElementById('stock-retazos-container').appendChild(createStockRow(true));
+        });
+    }
+}
+
+function collectStock() {
+    const stock = [];
+    document.querySelectorAll('#stock-nuevas-container .stock-row').forEach(row => {
+        const largo = parseFloat(row.querySelector('.stock-largo').value);
+        const cantidad = parseInt(row.querySelector('.stock-cantidad').value);
+        if (largo > 0 && cantidad > 0) {
+            stock.push({ largo, cantidad, isRetazo: false });
+        }
+    });
+    document.querySelectorAll('#stock-retazos-container .stock-row').forEach(row => {
+        const largo = parseFloat(row.querySelector('.stock-largo').value);
+        const cantidad = parseInt(row.querySelector('.stock-cantidad').value);
+        if (largo > 0 && cantidad > 0) {
+            stock.push({ largo, cantidad, isRetazo: true });
+        }
+    });
+    return stock;
 }
 
 function goToCorteStep(step) {
@@ -595,12 +675,15 @@ function goToCorteStep(step) {
 function resetCorteForm() {
     lastCalcTypes = null;
     lastCalcResults = null;
+    availableStock = [];
     const input = document.getElementById('input-tipos-count');
     if (input) input.value = 2;
     const container = document.getElementById('tipos-form-container');
     if (container) container.innerHTML = '';
     const nameInput = document.getElementById('input-project-name');
     if (nameInput) nameInput.value = '';
+    document.getElementById('stock-nuevas-container').innerHTML = '';
+    document.getElementById('stock-retazos-container').innerHTML = '';
 }
 
 async function renderProjectsList() {
@@ -713,11 +796,23 @@ function collectBarTypes() {
     return types;
 }
 
-function optimizeCutting(pieces) {
+function optimizeCutting(pieces, stock) {
+    // stock: array of { largo, isRetazo } — one entry per available bar
+    // If stock is empty → unlimited 12m bars (original behavior)
+    const useStock = stock && stock.length > 0;
+
     const sorted = [...pieces].sort((a, b) => b.largo - a.largo);
-    const bars = [];
+
+    // Initialize bars from stock (retazos first, then new bars)
+    const bars = useStock
+        ? [...stock].sort((a, b) => a.isRetazo - b.isRetazo || b.largo - a.largo)
+              .map(s => ({ remaining: s.largo, cuts: [], isRetazo: s.isRetazo, originalLargo: s.largo }))
+        : [];
+
     for (const piece of sorted) {
         let placed = false;
+
+        // Try to fit in an existing bar (retazos first, then new bars)
         for (const bar of bars) {
             if (bar.remaining >= piece.largo - 0.001) {
                 bar.cuts.push(piece);
@@ -726,16 +821,45 @@ function optimizeCutting(pieces) {
                 break;
             }
         }
+
         if (!placed) {
-            bars.push({ remaining: Math.round((BAR_LENGTH - piece.largo) * 100) / 100, cuts: [piece] });
+            if (useStock) {
+                // No room in any available bar — not enough material
+                return { error: `No hay suficiente material en el stock para la pieza "${piece.nombre}" (${piece.largo}m). Agregá más barras en el paso anterior.` };
+            } else {
+                // Unlimited mode: open a new 12m bar
+                bars.push({ remaining: Math.round((BAR_LENGTH - piece.largo) * 100) / 100, cuts: [piece], isRetazo: false, originalLargo: BAR_LENGTH });
+            }
         }
     }
-    return bars;
+
+    // Filter out unused bars from stock (no cuts made)
+    return bars.filter(b => b.cuts.length > 0);
 }
 
 function runCuttingOptimization() {
     const types = collectBarTypes();
     if (!types) return;
+
+    // Validate pieces don't exceed largest available bar in stock
+    const useStock = availableStock.length > 0;
+    if (useStock) {
+        const maxBarLen = Math.max(...availableStock.map(s => s.largo));
+        for (const t of types) {
+            if (t.largo > maxBarLen) {
+                showToast(`"${t.nombre}" (${t.largo}m) supera el largo máximo disponible (${maxBarLen}m)`);
+                return;
+            }
+        }
+    } else {
+        for (const t of types) {
+            if (t.largo > BAR_LENGTH) {
+                showToast(`"${t.nombre}": el largo no puede superar ${BAR_LENGTH}m`);
+                return;
+            }
+        }
+    }
+
     lastCalcTypes = types;
     const piecesByDiameter = {};
     types.forEach((type, tIdx) => {
@@ -745,39 +869,77 @@ function runCuttingOptimization() {
             piecesByDiameter[type.diametro].push({ nombre: type.nombre, largo: type.largo, color: color });
         }
     });
+
+    // Build flat stock list (expand by quantity, retazos sorted first for greedy use)
+    const stockFlat = useStock
+        ? availableStock.flatMap(s => Array.from({ length: s.cantidad }, () => ({ largo: s.largo, isRetazo: s.isRetazo })))
+              .sort((a, b) => (b.isRetazo ? -1 : 1)) // retazos first
+        : [];
+
     const results = {};
     for (const [diam, pieces] of Object.entries(piecesByDiameter)) {
-        results[diam] = optimizeCutting(pieces);
+        // Each diameter group gets its own copy of the full stock
+        const stockCopy = useStock ? stockFlat.map(s => ({ ...s })) : [];
+        const result = optimizeCutting(pieces, stockCopy);
+        if (result && result.error) {
+            showToast(result.error, 5000);
+            return;
+        }
+        results[diam] = result;
     }
+
     lastCalcResults = results;
-    renderResults(results, types);
-    goToCorteStep(3);
+    renderResults(results, types, useStock);
+    goToCorteStep(4);
 }
 
-function renderResults(results, types) {
+function renderResults(results, types, useStock) {
     const resumenEl = document.getElementById('resultado-resumen');
     const detalleEl = document.getElementById('resultado-detalle');
     if (!resumenEl || !detalleEl) return;
 
     let totalBars = 0;
+    let totalRetazos = 0;
     let totalWaste = 0;
     let resumenHTML = '<div class="resumen-grid">';
     for (const [diam, bars] of Object.entries(results)) {
+        const newBars = bars.filter(b => !b.isRetazo);
+        const retazos = bars.filter(b => b.isRetazo);
         const waste = bars.reduce((sum, b) => sum + b.remaining, 0);
-        totalBars += bars.length;
+        const totalLen = bars.reduce((sum, b) => sum + b.originalLargo, 0);
+        totalBars += newBars.length;
+        totalRetazos += retazos.length;
         totalWaste += waste;
-        const wastePercent = ((waste / (bars.length * BAR_LENGTH)) * 100).toFixed(1);
-        resumenHTML += `<div class="resumen-card"><div class="resumen-card-header"><span class="resumen-diam">Ø ${diam} mm</span></div><div class="resumen-card-value">${bars.length}</div><div class="resumen-card-label">barras de ${BAR_LENGTH}m</div><div class="resumen-card-waste">Desperdicio: ${waste.toFixed(2)}m (${wastePercent}%)</div></div>`;
+        const wastePercent = totalLen > 0 ? ((waste / totalLen) * 100).toFixed(1) : 0;
+        let barDetail = '';
+        if (newBars.length > 0) barDetail += `<div class="resumen-card-sub">🛒 ${newBars.length} barra${newBars.length !== 1 ? 's' : ''} nueva${newBars.length !== 1 ? 's' : ''}</div>`;
+        if (retazos.length > 0) barDetail += `<div class="resumen-card-sub">♻️ ${retazos.length} retazo${retazos.length !== 1 ? 's' : ''} reutilizado${retazos.length !== 1 ? 's' : ''}</div>`;
+        resumenHTML += `<div class="resumen-card"><div class="resumen-card-header"><span class="resumen-diam">Ø ${diam} mm</span></div><div class="resumen-card-value">${bars.length}</div><div class="resumen-card-label">barras utilizadas</div>${barDetail}<div class="resumen-card-waste">Desperdicio: ${waste.toFixed(2)}m (${wastePercent}%)</div></div>`;
     }
     resumenHTML += '</div>';
 
-    const totalWastePercent = totalBars > 0 ? ((totalWaste / (totalBars * BAR_LENGTH)) * 100).toFixed(1) : 0;
-    resumenHTML += `<div class="resumen-total"><div class="resumen-total-row"><span>Total barras a comprar</span><strong>${totalBars}</strong></div><div class="resumen-total-row"><span>Desperdicio total</span><strong>${totalWaste.toFixed(2)}m (${totalWastePercent}%)</strong></div></div>`;
+    const totalUsed = totalBars + totalRetazos;
+    resumenHTML += `<div class="resumen-total"><div class="resumen-total-row"><span>Total barras utilizadas</span><strong>${totalUsed}</strong></div>`;
+    if (useStock && totalRetazos > 0) resumenHTML += `<div class="resumen-total-row"><span>♻️ Retazos reutilizados</span><strong>${totalRetazos}</strong></div>`;
+    resumenHTML += `<div class="resumen-total-row"><span>Desperdicio total</span><strong>${totalWaste.toFixed(2)}m</strong></div></div>`;
 
-    // Shopping list
+    // Shopping list — only if not using custom stock (or show only new bars needed)
     let listaHTML = `<div class="lista-compras"><div class="lista-compras-header"><span class="lista-compras-icon">🛒</span><h4 class="lista-compras-title">Lista de Compras</h4></div><ul class="lista-compras-items">`;
+    // Group new bars by length
+    const newBarsByLen = {};
     for (const [diam, bars] of Object.entries(results)) {
-        listaHTML += `<li class="lista-compras-item"><span class="lista-item-qty">${bars.length}</span><span class="lista-item-desc">Barras de <strong>Ø ${diam} mm</strong> × ${BAR_LENGTH}m</span></li>`;
+        bars.filter(b => !b.isRetazo).forEach(b => {
+            const key = `${diam}__${b.originalLargo}`;
+            if (!newBarsByLen[key]) newBarsByLen[key] = { diam, largo: b.originalLargo, count: 0 };
+            newBarsByLen[key].count++;
+        });
+    }
+    if (Object.keys(newBarsByLen).length > 0) {
+        for (const item of Object.values(newBarsByLen)) {
+            listaHTML += `<li class="lista-compras-item"><span class="lista-item-qty">${item.count}</span><span class="lista-item-desc">Barras de <strong>Ø ${item.diam} mm</strong> × ${item.largo}m</span></li>`;
+        }
+    } else {
+        listaHTML += `<li class="lista-compras-item" style="color:var(--color-success, #2e7d32)">✅ Todo cubierto con el material disponible</li>`;
     }
     listaHTML += `</ul><div class="lista-compras-detalle"><div class="lista-detalle-title">Detalle de cortes a realizar:</div><ul class="lista-detalle-items">`;
     types.forEach((type, tIdx) => {
@@ -792,16 +954,21 @@ function renderResults(results, types) {
     for (const [diam, bars] of Object.entries(results)) {
         detalleHTML += `<div class="detalle-group"><h4 class="detalle-group-title">Ø ${diam} mm — Plan de corte</h4>`;
         bars.forEach((bar, barIdx) => {
+            const barLen = bar.originalLargo;
             const cutsHTML = bar.cuts.map(cut => {
-                const wp = (cut.largo / BAR_LENGTH) * 100;
+                const wp = (cut.largo / barLen) * 100;
                 return `<div class="bar-segment" style="width:${wp}%;background:${cut.color};" title="${cut.nombre}: ${cut.largo}m"><span class="bar-segment-label">${cut.largo}m</span></div>`;
             }).join('');
-            const wPct = (bar.remaining / BAR_LENGTH) * 100;
+            const wPct = (bar.remaining / barLen) * 100;
             const wasteHTML = bar.remaining > 0 ? `<div class="bar-segment bar-waste" style="width:${wPct}%;" title="Sobrante: ${bar.remaining}m"><span class="bar-segment-label">${bar.remaining}m</span></div>` : '';
             const uniqueCuts = []; const seen = new Set();
             bar.cuts.forEach(c => { const key = `${c.nombre}-${c.largo}`; if (!seen.has(key)) { seen.add(key); uniqueCuts.push({ ...c, count: bar.cuts.filter(x => x.nombre === c.nombre && x.largo === c.largo).length }); } });
             const legendHTML = uniqueCuts.map(c => `<span class="bar-legend-item"><span class="bar-legend-dot" style="background:${c.color}"></span>${c.nombre} (${c.largo}m) ×${c.count}</span>`).join('');
-            detalleHTML += `<div class="bar-diagram-card"><div class="bar-diagram-label">Barra ${barIdx + 1}</div><div class="bar-visual">${cutsHTML}${wasteHTML}</div><div class="bar-legend">${legendHTML}</div></div>`;
+            const barLabel = bar.isRetazo
+                ? `♻️ Retazo ${barIdx + 1} (${barLen}m)`
+                : `🛒 Barra ${barIdx + 1} (${barLen}m)`;
+            const barCardClass = bar.isRetazo ? 'bar-diagram-card bar-diagram-retazo' : 'bar-diagram-card';
+            detalleHTML += `<div class="${barCardClass}"><div class="bar-diagram-label">${barLabel}</div><div class="bar-visual">${cutsHTML}${wasteHTML}</div><div class="bar-legend">${legendHTML}</div></div>`;
         });
         detalleHTML += '</div>';
     }
