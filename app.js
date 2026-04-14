@@ -603,7 +603,7 @@ function createStockRow(isRetazo) {
             + '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>';
     } else {
         row.innerHTML = '<div class="stock-row-inputs">'
-            + '<div class="stock-input-group" style="flex:2"><label class="stock-label">Largo disponible en ferretería (m)</label>'
+            + '<div class="stock-input-group" style="flex:2"><label class="stock-label">Largo (m)</label>'
             + '<input type="number" class="form-input stock-largo" placeholder="ej: 12" value="12" min="0.1" step="0.01"></div>'
             + '<button class="stock-remove-btn" title="Eliminar" style="align-self:flex-end;margin-bottom:2px;">'
             + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">'
@@ -788,7 +788,7 @@ function collectBarTypes() {
         const largo = parseFloat(largos[i].value);
         const cantidad = parseInt(cantidades[i].value);
         if (!largo || largo <= 0) { showToast(`Tipo ${i + 1}: Ingresá un largo válido`); return null; }
-        if (largo > BAR_LENGTH) { showToast(`Tipo ${i + 1}: El largo no puede superar ${BAR_LENGTH}m`); return null; }
+        // Max bar length is validated later by the optimizer against the actual stock
         if (!cantidad || cantidad <= 0) { showToast(`Tipo ${i + 1}: Ingresá una cantidad válida`); return null; }
         types.push({ nombre, diametro, largo, cantidad, index: i });
     }
@@ -810,7 +810,7 @@ function optimizeCutting(pieces, remnantsFlat, newBarLengths) {
 
     for (const piece of sorted) {
         if (piece.largo > maxLen) {
-            return { error: 'La pieza "' + piece.nombre + '" (' + piece.largo + 'm) supera el largo máximo disponible (' + maxLen + 'm). Ajustá tu stock.' };
+            return { error: 'La pieza "' + piece.nombre + '" mide ' + piece.largo + 'm pero las barras disponibles son de máximo ' + maxLen + 'm. Agregá una barra más larga en el paso 1.' };
         }
         // Best-fit: pick existing bar with smallest remaining space that still fits
         let bestIdx = -1, bestRem = Infinity;
