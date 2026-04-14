@@ -839,6 +839,16 @@ function runCuttingOptimization() {
     const { newBarLengths = [], remnants = [] } = availableStock || {};
     const hasRemnants = remnants.length > 0;
 
+    lastCalcTypes = types;
+    const piecesByDiameter = {};
+    types.forEach((type, tIdx) => {
+        const color = CUT_COLORS[tIdx % CUT_COLORS.length];
+        if (!piecesByDiameter[type.diametro]) piecesByDiameter[type.diametro] = [];
+        for (let q = 0; q < type.cantidad; q++) {
+            piecesByDiameter[type.diametro].push({ nombre: type.nombre, largo: type.largo, color: color });
+        }
+    });
+
     // Expand remnants to flat list of physical bars (one entry per piece)
     const remnantsFlat = remnants.flatMap(r =>
         Array.from({ length: r.cantidad }, () => ({ largo: r.largo, isRetazo: true }))
