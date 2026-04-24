@@ -1135,6 +1135,21 @@ async function registerServiceWorker() {
 }
 
 // ============================================
+// SECCIÓN EQUIV. RECTANGULAR
+// ============================================
+
+function initSeccionRect() {
+    const card = document.getElementById('card-seccion-rect');
+    if (card) {
+        card.addEventListener('click', () => showScreen('screen-seccion-rect'));
+    }
+    const btnBack = document.getElementById('btn-back-seccion-rect');
+    if (btnBack) {
+        btnBack.addEventListener('click', () => goHome());
+    }
+}
+
+// ============================================
 // INIT
 // ============================================
 
@@ -1144,6 +1159,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initOnboarding();
     initAuth();
     initCorteBarras();
+    initSeccionRect();
     initSettings();
     initModals();
     initNavButtons();
